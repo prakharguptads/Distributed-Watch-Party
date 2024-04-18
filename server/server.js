@@ -5,6 +5,10 @@ const ioUtils = require('./utils/io');
 const Rooms = require('./utils/Rooms');
 const bodyParser = require('body-parser');
 const axios = require('axios');
+const {
+	generateServerMessage,
+	generateUserMessage,
+} = require('./utils/message');
 
 // Middleware to parse JSON bodies
 app.use(bodyParser.json());
@@ -38,29 +42,29 @@ app.post('/rooms1/:roomId', (req, res) => {
     }
 });
 
-app.post('/rooms1/:roomId/videoStateChange', (req, res) => {
+app.post('/rooms1/:roomId/videoStateChange', async (req, res) => {
 	console.log("received from server video state change")
     const roomId = req.params.roomId;
     const { name, userId, data } = req.body;
     console.log('name, userid, data', name, userId, data);
-    const users_address = ['http://localhost:3006'];
+    const users_address = ['http://localhost:3006','http://localhost:3005'];
     for(var i=0; i<users_address.length; i++){
         const address = users_address[i];
-        // address += /rooms1/${roomId}/setVideoState
-        // try{
-        //     console.log(name,userId);
-        //     let a = ${address}/rooms2/${roomId}/setVideoState;
-        //     console.log(a);
-        //     axios.post(a, {
-        //         name: name,
-        //         userId: userId,
-        //         data: data
-        //     });
+        // address += '/rooms1/${roomId}/setVideoState'
+        try{
+            console.log("yess ",name,userId);
+            const a = `${address}/rooms2/setVideoState`;
+            console.log(a);
+            await axios.post(a, {
+                name: name,
+                userId: userId,
+                data: data
+            });
 
-        // }
-        // catch(error){
-        //     console.log('failed to send set video state to all', error.message)
-        // }
+        }
+        catch(error){
+            console.log('failed to send set video state to all', error.message)
+        }
     }
 });
 
@@ -71,21 +75,21 @@ app.post('/rooms2/setVideoState', (req, res) => {
 	console.log('roomId', roomId);
 	console.log('name, userid, data', name, userId, data);
 
-	// try{
-	// 	io.emit('updateVideoState', {
-	// 		type: data.type,
-	// 		...data.payload,
-	// 		user: {
-	// 			name: user.name,
-	// 			id: socket.id,
-	// 		},
-	// 	});
-	// 	res.json(true);
-	// }
-	// catch(error){
-	// 	console.log("unable to send data to front end", error.message);
-	// 	res.status(404).json({error: 'unable to update front end'});
-	// }
+	try{
+		io.emit('newMessage', generateServerMessage('updateVideoState', {
+					type: data.type,
+					...data.payload,
+					user: {
+						name: name,
+						id: userId,
+					},
+				}));
+		res.json(true);
+	}
+	catch(error){
+		console.log("unable to send data to front end", error.message);
+		res.status(404).json({error: 'unable to update front end'});
+	}
 });
 
 ioUtils.setupIO(io);

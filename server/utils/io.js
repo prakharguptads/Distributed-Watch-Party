@@ -30,10 +30,11 @@ exports.setupIO = (io) => {
 			const { roomId, name, userId, videoId, videoURL } = data;
 			console.log(`User ${name} just joined in room ${roomId}`);
 			console.log("URL ",videoURL)
+			let hostname = ""
 			if(videoURL)
 			{
 				const url = new URL(videoURL);
-				const hostname = url.hostname;
+				hostname = url.hostname;
 				console.log("hostname ",hostname)
 			}
 
