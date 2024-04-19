@@ -9,7 +9,7 @@ const {
 	generateServerMessage,
 	generateUserMessage,
 } = require('./utils/message');
-
+// let clientIpList = [];
 // Middleware to parse JSON bodies
 app.use(bodyParser.json());
 const io = require('socket.io')(server, {
@@ -27,6 +27,7 @@ app.get('/test', (req, res, next) => {
 app.post('/rooms1/:roomId', (req, res) => {
 	console.log("received from server")
     const clientIp = req.ip;
+    // clientIpList.push(clientIp);
     const clientPort = req.socket.remotePort;
     console.log("IP ",clientIp,clientPort)
     const roomId = req.params.roomId;
@@ -47,13 +48,14 @@ app.post('/rooms1/:roomId/videoStateChange', async (req, res) => {
     const roomId = req.params.roomId;
     const { name, userId, data } = req.body;
     console.log('name, userid, data', name, userId, data);
-    const users_address = ['http://localhost:3006','http://localhost:3005'];
-    for(var i=0; i<users_address.length; i++){
-        const address = users_address[i];
+    const clientIpList = ['http://localhost:3006','http://localhost:3005','http://localhost:3007'];
+    for(var i=0; i<clientIpList.length; i++){
+        const address = clientIpList[i];
         // address += '/rooms1/${roomId}/setVideoState'
         try{
             console.log("yess ",name,userId);
             const a = `${address}/rooms2/setVideoState`;
+            // const a = `${address}:3005/rooms2/setVideoState`;
             console.log(a);
             await axios.post(a, {
                 name: name,
