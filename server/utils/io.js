@@ -1,4 +1,5 @@
 const Rooms = require('./Rooms');
+const { Worker} = require('worker_threads');
 const {
 	generateServerMessage,
 	generateUserMessage,
@@ -10,6 +11,7 @@ async function fetchRoomInfo(roomId, name, userId, hostname) {
         // Make an HTTP POST request to the other server's API endpoint
 		console.log(name,userId,hostname)
         const response = await axios.post(`http://${hostname}:3005/rooms1/${roomId}`, {
+			// const response = await axios.post(`http://localhost:3005/rooms1/${roomId}`, {
             name: name,
             userId: userId
         });
@@ -17,6 +19,23 @@ async function fetchRoomInfo(roomId, name, userId, hostname) {
     } catch (error) {
         // Handle errors, such as network errors or server errors
         console.log(`Failed to fetch room information for roomId ${roomId}: ${error.message}`);
+    }
+}
+
+async function send_heartBeat(roomId, address) {
+    try {
+        // Make an HTTP POST request to the other server's API endpoint
+        console.log("address", address);
+        const response = await axios.post(`${address}/${roomId}/heartbeat`, {
+            // host_userId: host_userId,
+            type: "hb"
+        });
+		console.log(response.data);
+        return response.data;
+    } catch (error) {
+        // Handle errors, such as network errors or server errors
+        console.log(`Failed to send heartbeat of room=${roomId} to userIp=${address}, :${error.message}`);
+		return "Failed to send heartbeat";
     }
 }
 
@@ -44,7 +63,9 @@ exports.setupIO = (io) => {
 			if(videoURL)
 			{try {
 				// Assuming you have a function `fetchRoomInfo` to fetch room information
-				roomInfo = await fetchRoomInfo(roomId,name,userId,hostname);
+				const hn = hostname;
+				console.log("hostname", hn);
+				roomInfo = await fetchRoomInfo(roomId,name,userId, hn);
 				console.log("got ",roomInfo)
 			} catch (error) {
 				console.error('Error fetching room information:', error);
@@ -65,8 +86,62 @@ exports.setupIO = (io) => {
 			}
 			else
 			{
+				// Create the room
 				Rooms.addRoom(roomId, videoId);
 				Rooms.addUser(roomId, name, userId); // data.userId = socket.id
+
+				const port = '3006';
+				async function sendHeartbeats() {
+					// while (true) {
+						userlist = Rooms.getUserList(roomId);
+						console.log("userList", userlist);
+				
+						userIplist = Rooms.getUserIpList(roomId);
+						console.log("userIplist", userIplist);
+						
+						if (userIplist.length === 0) {
+							console.log("No users have joined yet");
+						} else {
+							for (let i = 0; i < userIplist.length; i++) {
+								const ip = userIplist[i];
+								const address = `${ip}:${port}`;
+								console.log(`Sending heartbeat to ${address}`);
+								const response = await send_heartBeat(roomId, address);
+								if(response != "HeartBeat received"){
+									
+								}
+							}
+						}
+						
+						// await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds
+					// }
+				}
+				while(true){
+					sendHeartbeats();
+					await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds
+				}
+
+				// Create a thread which will send heartbeat to all users
+				// function createWorker (workerData) {
+					// const worker = new Worker('./utils/heartBeat.js', { workerData: { roomId, userId, Rooms } });
+					// worker.on('error', (err) => { throw err });
+					// worker.on('message', (msg) => {
+					// 	console.log(msg)
+					// 	// primes = primes.concat(msg);
+					// });
+					// worker.on('exit', () => {
+					// 	console.log('host stopped sending heartbeat');
+					// });
+
+				// 	return worker
+				// }
+				  
+				// const range = Math.ceil((max - min) / threadCount);
+				// let start = min; 
+				// for(let i = 0; i <threadCount; i++) {
+				// threads.add(createWorker({start, range}));
+				// start = start + range + 1;
+				// }
 			}
 			// Rooms.showInfo();
 
@@ -167,22 +242,22 @@ exports.setupIO = (io) => {
 			console.log('User disconnected');
 			const user = Rooms.removeUser(socket.id);
 			// Rooms.showInfo();
-			console.log(`${user.name} has left`);
+			if(user && user.name) console.log(`${user.name} has left`);
 
-			io.to(user.roomId).emit(
-				'newMessage',
-				generateServerMessage('userLeft', {
-					name: user.name,
-					userId: user.id,
-					roomId: user.roomId,
-				})
-			);
+			// io.to(user.roomId).emit(
+			// 	'newMessage',
+			// 	generateServerMessage('userLeft', {
+			// 		name: user.name,
+			// 		userId: user.id,
+			// 		roomId: user.roomId,
+			// 	})
+			// );
 
-			// tell everyone in the room to update their userlist
-			io.to(user.roomId).emit(
-				'updateUserList',
-				Rooms.getUserList(user.roomId)
-			);
+			// // tell everyone in the room to update their userlist
+			// io.to(user.roomId).emit(
+			// 	'updateUserList',
+			// 	Rooms.getUserList(user.roomId)
+			// );
 		});
 	});
 };

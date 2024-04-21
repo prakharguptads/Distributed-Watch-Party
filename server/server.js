@@ -9,12 +9,12 @@ const {
 	generateServerMessage,
 	generateUserMessage,
 } = require('./utils/message');
-// let clientIpList = [];
+let clientIpList = [];
 // Middleware to parse JSON bodies
 app.use(bodyParser.json());
 const io = require('socket.io')(server, {
 	path: '/socket',
-	origins: ['http://localhost:3000'],
+	origins: ['http://10.1.37.213:3000'],
 	serveClient: false,
 });
 
@@ -26,13 +26,15 @@ app.get('/test', (req, res, next) => {
 
 app.post('/rooms1/:roomId', (req, res) => {
 	console.log("received from server")
-    const clientIp = req.ip;
-    // clientIpList.push(clientIp);
+    const clientIp = "http://" + req.ip.split(':')[3];
+    clientIpList.push(clientIp);
     const clientPort = req.socket.remotePort;
     console.log("IP ",clientIp,clientPort)
     const roomId = req.params.roomId;
     const { name, userId } = req.body;
     Rooms.addUser(roomId, name, userId);
+    console.log("clientIp", clientIp);
+    Rooms.addUserIp(roomId, userId, clientIp);
     const roomInfo = Rooms.rooms[roomId];
     if (roomInfo) {
         io.emit('updateUserList', Rooms.getUserList(roomId));
@@ -93,6 +95,40 @@ app.post('/rooms2/setVideoState', (req, res) => {
 		res.status(404).json({error: 'unable to update front end'});
 	}
 });
+
+
+let last_heartBeat = {}
+app.post('/:roomId/heartbeat', (req, res) => {
+	console.log("received heartbeat from host")
+    // const clientIp = req.ip;
+    // clientIpList.push(clientIp);
+    // const clientPort = req.socket.remotePort;
+    // console.log("IP ",clientIp,clientPort)
+    const roomId = req.params.roomId;
+    const {type } = req.body;
+    last_heartBeat[roomId] = Date.now()
+    res.send("HeartBeat received");
+});
+
+// Check if the POST method is not hit for 10 seconds
+setInterval(() => {
+    const currentTime = Date.now();
+    const rooms = Object.keys(last_heartBeat);
+    for(var i=0; i<rooms.length; i++){
+        const roomId = rooms[i];
+        const timeElapsedSinceLastPost = currentTime - last_heartBeat[roomId];
+        if (timeElapsedSinceLastPost >= 15000) {
+            console.log("No heartbeat received for 10 seconds");
+            Rooms.showInfo();
+            Rooms.deleteRoom(roomId);
+            delete last_heartBeat[roomId];
+            Rooms.showInfo();
+            // io.emit('roomDeleted', roomId);
+            io.emit('newMessage', generateServerMessage('roomDeleted', {}));
+            // Perform any necessary action here, such as sending a notification
+        }
+    }
+}, 1000); // Check every second (you can adjust the interval as needed)
 
 ioUtils.setupIO(io);
 

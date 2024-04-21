@@ -37,6 +37,7 @@ export const bindSocketEvents = (socket, dispatchFunc) => {
 
 	socket.on('newMessage', (data) => {
 		const name = data.payload && data.payload.name;
+		console.log("new message");
 
 		switch (data.type) {
 			case 'userJoin':
@@ -50,6 +51,12 @@ export const bindSocketEvents = (socket, dispatchFunc) => {
 			case 'userLeft':
 				showToast('info', `${data.payload.name} has left the room`);
 				dispatchAdminMessage(data.id, `${name} has left`);
+				break;
+
+			case 'roomDeleted':
+				console.log("room Deleted");
+				alert('error: Host has left the room');
+				window.location.href='/';
 				break;
 
 			case 'userMessage':
