@@ -14,7 +14,7 @@ let clientIpList = [];
 app.use(bodyParser.json());
 const io = require('socket.io')(server, {
 	path: '/socket',
-	origins: ['http://10.1.37.213:3000'],
+	origins: ['http://localhost:3000'],
 	serveClient: false,
 });
 
@@ -24,18 +24,19 @@ app.get('/test', (req, res, next) => {
 	res.send({ message: 'Hello World' });
 });
 
-app.post('/rooms1/:roomId', (req, res) => {
+app.post('/rooms1/:roomId', async (req, res) => {
 	console.log("received from server")
-    const clientIp = "http://" + req.ip.split(':')[3];
-    clientIpList.push(clientIp);
+    let clientIp = "http://" + req.ip.split(':')[3];
     const clientPort = req.socket.remotePort;
     console.log("IP ",clientIp,clientPort)
     const roomId = req.params.roomId;
-    const { name, userId } = req.body;
+    let { name, userId, port } = req.body;
+    clientIp = clientIp+":"+port
+    clientIpList.push(clientIp);
     Rooms.addUser(roomId, name, userId);
-    console.log("clientIp", clientIp);
     Rooms.addUserIp(roomId, userId, clientIp);
     const roomInfo = Rooms.rooms[roomId];
+    
     if (roomInfo) {
         io.emit('updateUserList', Rooms.getUserList(roomId));
         res.json(roomInfo);
@@ -43,6 +44,34 @@ app.post('/rooms1/:roomId', (req, res) => {
     } else {
         res.status(404).json({ error: 'Room not found' });
     }
+    for(var i=0; i<clientIpList.length; i++){
+        const address = clientIpList[i];
+        // address += '/rooms1/${roomId}/setVideoState'
+        try{
+            console.log("yess ",name,userId);
+            const a = `${address}/${roomId}/updateUserListOnJoin`;
+            // const a = `${address}:3005/rooms2/setVideoState`;
+            console.log(a);
+            await axios.post(a, {
+                roomInfo: roomInfo,
+            });
+
+        }
+        catch(error){
+            console.log('failed to send set video state to all', error.message)
+        }
+    }
+});
+
+app.post('/:roomId/updateUserListOnJoin', (req, res) => {
+	console.log("received update userlist msg from host")
+    const roomId = req.params.roomId;
+    const {roomInfo} = req.body;
+    console.log("Roo",roomInfo)
+    Rooms.rooms[roomId] = roomInfo
+    io.to(roomId).emit('updateUserList', Rooms.getUserList(roomId));
+    // last_heartBeat[roomId] = Date.now()
+    // res.send("HeartBeat received");
 });
 
 app.post('/rooms1/:roomId/videoStateChange', async (req, res) => {
@@ -60,6 +89,7 @@ app.post('/rooms1/:roomId/videoStateChange', async (req, res) => {
             // const a = `${address}:3005/rooms2/setVideoState`;
             console.log(a);
             await axios.post(a, {
+                roomId: roomId,
                 name: name,
                 userId: userId,
                 data: data
@@ -96,7 +126,6 @@ app.post('/rooms2/setVideoState', (req, res) => {
 	}
 });
 
-
 let last_heartBeat = {}
 app.post('/:roomId/heartbeat', (req, res) => {
 	console.log("received heartbeat from host")
@@ -108,6 +137,21 @@ app.post('/:roomId/heartbeat', (req, res) => {
     const {type } = req.body;
     last_heartBeat[roomId] = Date.now()
     res.send("HeartBeat received");
+});
+
+app.post('/:roomId/updateUserList', (req, res) => {
+	console.log("received update userlist msg from host")
+    // const clientIp = req.ip;
+    // clientIpList.push(clientIp);
+    // const clientPort = req.socket.remotePort;
+    // console.log("IP ",clientIp,clientPort)
+    const roomId = req.params.roomId;
+    const {roomInfo} = req.body;
+    console.log("Roo",roomInfo)
+    Rooms.rooms[roomId] = roomInfo
+    io.to(roomId).emit('updateUserList', Rooms.getUserList(roomId));
+    // last_heartBeat[roomId] = Date.now()
+    // res.send("HeartBeat received");
 });
 
 // Check if the POST method is not hit for 10 seconds
@@ -130,6 +174,6 @@ setInterval(() => {
     }
 }, 1000); // Check every second (you can adjust the interval as needed)
 
-ioUtils.setupIO(io);
+ioUtils.setupIO(io,server,PORT);
 
 server.listen(PORT, () => console.log(`Server started on port: ${PORT}`));

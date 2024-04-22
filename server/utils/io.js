@@ -6,14 +6,15 @@ const {
 } = require('../utils/message');
 const axios = require('axios');
 
-async function fetchRoomInfo(roomId, name, userId, hostname) {
+async function fetchRoomInfo(roomId, name, userId, hostname, port) {
     try {
         // Make an HTTP POST request to the other server's API endpoint
 		console.log(name,userId,hostname)
         const response = await axios.post(`http://${hostname}:3005/rooms1/${roomId}`, {
 			// const response = await axios.post(`http://localhost:3005/rooms1/${roomId}`, {
             name: name,
-            userId: userId
+            userId: userId,
+			port: port
         });
         return response.data;
     } catch (error) {
@@ -39,8 +40,31 @@ async function send_heartBeat(roomId, address) {
     }
 }
 
+async function send_to_all_to_update_userlist(userId_ip_list, roomId, userList, deleted_id, deleted_ip){
+	console.log("userList", userList);
+	console.log("roomId", roomId);
+	console.log("user id ip list", userId_ip_list);
+	console.log("user id ip list length", userId_ip_list.length);
+	for(var i=0; i<userId_ip_list.length; i++){
+		try{
+			const {userId, userIp} = userId_ip_list[i];
+			const address = userIp;
+			const roomInfo = Rooms.rooms[roomId]
+			console.log("uip",userIp,address)
+			console.log(`Sending msg to all to update userlist ${address}`);
+			const response = await axios.post(`${address}/${roomId}/updateUserList`, {
+				// host_userId: host_userId,
+				roomInfo: roomInfo,
+			});
+		}
+		catch(error){
+			console.log(`Failed to send update user list msg`, error);
+		}
+	}
+}
 
-exports.setupIO = (io) => {
+
+exports.setupIO = (io,server,PORT) => {
 	io.on('connection', (socket) => {
 		console.log(`User connected: ${socket.id}`);
 
@@ -65,7 +89,7 @@ exports.setupIO = (io) => {
 				// Assuming you have a function `fetchRoomInfo` to fetch room information
 				const hn = hostname;
 				console.log("hostname", hn);
-				roomInfo = await fetchRoomInfo(roomId,name,userId, hn);
+				roomInfo = await fetchRoomInfo(roomId,name,userId, hn, PORT);
 				console.log("got ",roomInfo)
 			} catch (error) {
 				console.error('Error fetching room information:', error);
@@ -89,36 +113,51 @@ exports.setupIO = (io) => {
 				// Create the room
 				Rooms.addRoom(roomId, videoId);
 				Rooms.addUser(roomId, name, userId); // data.userId = socket.id
-
-				const port = '3006';
 				async function sendHeartbeats() {
 					// while (true) {
 						userlist = Rooms.getUserList(roomId);
 						console.log("userList", userlist);
 				
-						userIplist = Rooms.getUserIpList(roomId);
+						userIplist = Rooms.getUserId_IpList(roomId);
 						console.log("userIplist", userIplist);
 						
 						if (userIplist.length === 0) {
 							console.log("No users have joined yet");
 						} else {
 							for (let i = 0; i < userIplist.length; i++) {
-								const ip = userIplist[i];
-								const address = `${ip}:${port}`;
+								const ip = userIplist[i].userIp;
+								const id = userIplist[i].userId;
+								console.log("id, ip",  id, ip);
+								const address = `${ip}`;
 								console.log(`Sending heartbeat to ${address}`);
 								const response = await send_heartBeat(roomId, address);
 								if(response != "HeartBeat received"){
-									
+									Rooms.removeUser(id);
+									Rooms.removeIp(roomId, id, ip);
+									await send_to_all_to_update_userlist(Rooms.getUserId_IpList(roomId), roomId, Rooms.getUserList(roomId), id, ip);
 								}
 							}
 						}
+						io.to(roomId).emit('updateUserList', Rooms.getUserList(roomId));
 						
 						// await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds
 					// }
 				}
 				while(true){
 					sendHeartbeats();
-					await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds
+					await new Promise((resolve, reject) => {
+						setTimeout(() => {
+							// Simulate some asynchronous operation
+							const isSuccess = true; // Or determine success based on some condition
+					
+							if (isSuccess) {
+								resolve("Operation completed successfully"); // Resolve with a success message or data
+							} else {
+								reject(new Error("Operation failed")); // Reject with an error
+							}
+						}, 5000); // Wait for 5 seconds
+					});
+					 // Wait for 5 seconds
 				}
 
 				// Create a thread which will send heartbeat to all users
@@ -243,7 +282,9 @@ exports.setupIO = (io) => {
 			const user = Rooms.removeUser(socket.id);
 			// Rooms.showInfo();
 			if(user && user.name) console.log(`${user.name} has left`);
-
+			server.close(() => {
+				console.log('Server stopped');
+			});
 			// io.to(user.roomId).emit(
 			// 	'newMessage',
 			// 	generateServerMessage('userLeft', {

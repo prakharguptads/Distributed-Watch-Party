@@ -8,6 +8,7 @@ class Rooms {
 		this.userMap = {}; // maps socket id to rooms
 		this.userid_ip_map = {} // maps userid to user ip
 		this.userIps = {} // list of user Ips
+		this.userid_ip = {} // [{userid, userip}]
 	}
 
 	addRoom(roomId, videoId) {
@@ -62,6 +63,7 @@ class Rooms {
 	deleteRoom(roomId){
 		if (this.rooms[roomId]) delete this.rooms[roomId];
 		if(this.userIps[roomId]) delete this.userIps[roomId];
+		if(this.userid_ip[roomId]) delete this.userid_ip[roomId];
 		if(this.userid_ip_map[roomId]) delete this.userid_ip_map;
 
 		for (const socket in this.userMap) {
@@ -95,22 +97,41 @@ class Rooms {
 			this.rooms[roomId]['users'].forEach((user) => console.log(user));
 		});
 		console.log("userIps", this.userIps)
+		console.log("userId_ip", this.userid_ip);
 	}
 
-	addUserIp(roomId, userId, userIp) {
-		if (!this.userIps[roomId]) this.userIps[roomId] = [];
+	addUserIp(roomId, userId, userIp){
+		if(!this.userIps[roomId]) this.userIps[roomId] = [];
 		this.userIps[roomId].push(userIp);
-		if (!this.userid_ip_map[roomId]) this.userid_ip_map[roomId] = {};
+		if(!this.userid_ip[roomId]) this.userid_ip[roomId] = [];
+		this.userid_ip[roomId].push({userId, userIp});
+		if(!this.userid_ip_map[roomId]) this.userid_ip_map[roomId] = {}
 		this.userid_ip_map[roomId][userId] = userIp;
 	}
 
+
 	getUserIpList(roomId){
 		if(!this.userIps[roomId]) return [];
-		return this.userIps[roomId]
+		else return this.userIps[roomId]
+	}
+	getUserId_IpList(roomId){
+		if(!this.userid_ip[roomId]) return [];
+		else return this.userid_ip[roomId];
 	}
 
 	getUserIp(roomId, userId){
 		return this.userid_ip_map[roomId][userId];
+	}
+
+	removeIp(roomId, userId, userIp) {
+		if (this.userIps[roomId]) {
+			this.userIps[roomId] = this.userIps[roomId].filter(item => item !== userIp);
+		}
+		if (this.userid_ip[roomId]) {
+			this.userid_ip[roomId] = this.userid_ip[roomId].filter(item => item.userId !== userId || item.userIp !== userIp);
+		}
+		console.log("inside rooms useriplist", this.userIps)
+		console.log("inside rooms user id ip list", this.userid_ip);
 	}
 }
 
