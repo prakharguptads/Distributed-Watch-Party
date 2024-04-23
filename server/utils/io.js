@@ -5,7 +5,7 @@ const {
 	generateUserMessage,
 } = require('../utils/message');
 const axios = require('axios');
-
+let closeServer = 1
 async function fetchRoomInfo(roomId, name, userId, hostname, port) {
     try {
         // Make an HTTP POST request to the other server's API endpoint
@@ -143,7 +143,7 @@ exports.setupIO = (io,server,PORT) => {
 						// await new Promise(resolve => setTimeout(resolve, 5000)); // Wait for 5 seconds
 					// }
 				}
-				while(true){
+				while(closeServer){
 					sendHeartbeats();
 					await new Promise((resolve, reject) => {
 						setTimeout(() => {
@@ -281,6 +281,7 @@ exports.setupIO = (io,server,PORT) => {
 			console.log('User disconnected');
 			const user = Rooms.removeUser(socket.id);
 			// Rooms.showInfo();
+			closeServer = 0
 			if(user && user.name) console.log(`${user.name} has left`);
 			server.close(() => {
 				console.log('Server stopped');
